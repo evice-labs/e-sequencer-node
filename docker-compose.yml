@@ -1,0 +1,111 @@
+services:
+  node-0:
+    build:
+      context: ../
+      dockerfile: e-sequencer-node/Dockerfile
+    container_name: sequencer-node-0
+    environment:
+      - DEV_MODE=true
+      - P2P_PORT=9000
+      - GENESIS_PATH=/app/genesis.json
+      - DATA_DIR=/data
+      - KEYSTORE_PATH=/data/keystore.json
+      - VRF_PRIV_KEY_FILE=/data/vrf_private_key
+      - KEYSTORE_PASSWORD=dev-password
+      - RUST_LOG=info
+    volumes:
+      - ./genesis.json:/app/genesis.json:ro
+      - ./node_data/node-0:/data
+    ports:
+      - "9000:9000"
+    command: >
+      --dev
+      --p2p-port 9000
+      --genesis /app/genesis.json
+      --data-dir /data
+      --keystore-path /data/keystore.json
+      --password dev-password
+    networks:
+      - sequencer-net
+
+  node-1:
+    build:
+      context: ../
+      dockerfile: e-sequencer-node/Dockerfile
+    container_name: sequencer-node-1
+    environment:
+      - DEV_MODE=true
+      - RUST_LOG=info
+    volumes:
+      - ./genesis.json:/app/genesis.json:ro
+      - ./node_data/node-1:/data
+    ports:
+      - "9001:9001"
+    command: >
+      --dev
+      --p2p-port 9001
+      --genesis /app/genesis.json
+      --data-dir /data
+      --keystore-path /data/keystore.json
+      --password dev-password
+      --bootstrap-node /ip4/sequencer-node-0/tcp/9000/p2p/REPLACE_WITH_NODE0_PEER_ID
+    depends_on:
+      - node-0
+    networks:
+      - sequencer-net
+
+  node-2:
+    build:
+      context: ../
+      dockerfile: e-sequencer-node/Dockerfile
+    container_name: sequencer-node-2
+    environment:
+      - DEV_MODE=true
+      - RUST_LOG=info
+    volumes:
+      - ./genesis.json:/app/genesis.json:ro
+      - ./node_data/node-2:/data
+    ports:
+      - "9002:9002"
+    command: >
+      --dev
+      --p2p-port 9002
+      --genesis /app/genesis.json
+      --data-dir /data
+      --keystore-path /data/keystore.json
+      --password dev-password
+      --bootstrap-node /ip4/sequencer-node-0/tcp/9000/p2p/REPLACE_WITH_NODE0_PEER_ID
+    depends_on:
+      - node-0
+    networks:
+      - sequencer-net
+
+  node-3:
+    build:
+      context: ../
+      dockerfile: e-sequencer-node/Dockerfile
+    container_name: sequencer-node-3
+    environment:
+      - DEV_MODE=true
+      - RUST_LOG=info
+    volumes:
+      - ./genesis.json:/app/genesis.json:ro
+      - ./node_data/node-3:/data
+    ports:
+      - "9003:9003"
+    command: >
+      --dev
+      --p2p-port 9003
+      --genesis /app/genesis.json
+      --data-dir /data
+      --keystore-path /data/keystore.json
+      --password dev-password
+      --bootstrap-node /ip4/sequencer-node-0/tcp/9000/p2p/REPLACE_WITH_NODE0_PEER_ID
+    depends_on:
+      - node-0
+    networks:
+      - sequencer-net
+
+networks:
+  sequencer-net:
+    driver: bridge
