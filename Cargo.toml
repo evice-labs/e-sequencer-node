@@ -1,0 +1,25 @@
+[package]
+name = "e-sequencer-node"
+version = "0.1.0"
+edition = "2021"
+description = "Thin binary for running an Evice Sequencer node"
+
+[[bin]]
+name = "e-sequencer-node"
+path = "src/main.rs"
+
+[dependencies]
+# Core sequencer library
+evice-sequencer = { path = "../e-sequencer" }
+
+tokio = { version = "1", features = ["full", "signal"] }
+clap = { version = "4", features = ["derive", "env"] }
+serde_json = "1.0"
+rpassword = "7.3"
+log = "0.4"
+env_logger = "0.11"
+
+libp2p = { version = "0.56.0", features = ["ed25519", "noise", "tcp", "quic", "yamux", "gossipsub", "kad", "identify", "request-response"] }
+schnorrkel = { version = "0.11.5", features = ["getrandom"] }
+hex = "0.4"
+rand = "0.10.1"

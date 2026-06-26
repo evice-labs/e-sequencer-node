@@ -1,0 +1,7 @@
+/target
+node_data/
+
+*.json
+*.lock
+
+!docker-compose.yml
