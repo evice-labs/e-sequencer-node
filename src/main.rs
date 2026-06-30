@@ -31,7 +31,7 @@ use tokio::sync::{mpsc, Mutex, RwLock};
 struct Args {
     #[clap(long)]
     bootstrap: bool,
-    #[clap(long, default_value = "4")]
+    #[clap(long, default_value = "6")]
     num_validators: usize,
     #[clap(long)]
     bootstrap_node: Vec<String>,
@@ -261,18 +261,25 @@ async fn run_node(args: Args) -> Result<(), Box<dyn std::error::Error + Send + S
     tokio::spawn(engine.run(consensus_msg_rx, txs_response_rx));
     info!("[MAIN] Consensus engine spawned.");
 
-    // 8. Spawn P2P layer
-    let is_bootstrap_node = args.bootstrap_node.is_empty();
-    let bootstrap_nodes = args.bootstrap_node.clone();
+    // 8. Spawn P2P layer — auto-resolve bootstrap nodes from genesis
+    let bootstrap_nodes = resolve_bootstrap_nodes(&args, &genesis, &local_peer_id);
+    let is_bootstrap_node = bootstrap_nodes.is_empty();
 
-    if !bootstrap_nodes.is_empty() {
+    if !is_bootstrap_node {
         let delay_ms = rand::rng().random_range(500u64..2000);
         info!(
             "[MAIN] Non-bootstrap node, waiting {}ms before starting P2P...",
             delay_ms
         );
         tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+    } else {
+        info!("[MAIN] Running as bootstrap node (no peers to connect to).");
     }
+
+    info!(
+        "[MAIN] Bootstrap peers: {:?}",
+        bootstrap_nodes
+    );
 
     let p2p_handle = tokio::spawn(p2p::run(
         p2p_keypair,
@@ -357,12 +364,31 @@ fn load_or_create_p2p_keypair(
     }
 }
 
-// Utility: Validator Key Loading
+// Utility: Validator Key Loading (auto-reads VRF key from file if not passed via CLI)
 fn load_validator_keys(args: &Args) -> Result<ValidatorKeys, Box<dyn std::error::Error + Send + Sync>> {
     let keystore_path = args.keystore_path.as_ref()
         .expect("--keystore-path is required to run as a validator node.");
-    let vrf_priv_key_hex = args.vrf_priv_key.as_ref()
-        .expect("--vrf-priv-key is required to run as a validator node.");
+
+    // VRF key: CLI arg > file in data_dir
+    let vrf_priv_key_hex = match &args.vrf_priv_key {
+        Some(key) => {
+            info!("[KEYS] Using VRF private key from CLI/env.");
+            key.clone()
+        }
+        None => {
+            let vrf_file = Path::new(&args.data_dir).join("vrf_private_key");
+            if vrf_file.exists() {
+                let content = fs::read_to_string(&vrf_file)?.trim().to_string();
+                info!("[KEYS] Loaded VRF private key from {:?}", vrf_file);
+                content
+            } else {
+                return Err(format!(
+                    "VRF private key not found. Provide --vrf-priv-key or place key in {}/vrf_private_key",
+                    args.data_dir
+                ).into());
+            }
+        }
+    };
 
     info!("[KEYS] Loading keystore from: {}", keystore_path);
     let keystore = Keystore::from_path(keystore_path)?;
@@ -382,7 +408,7 @@ fn load_validator_keys(args: &Args) -> Result<ValidatorKeys, Box<dyn std::error:
     let pk_bytes = hex::decode(&keystore.public_key)?;
     let signing_keys = KeyPair::from_key_bytes(&pk_bytes, &sk_bytes)?;
 
-    let vrf_secret_bytes = hex::decode(vrf_priv_key_hex)?;
+    let vrf_secret_bytes = hex::decode(&vrf_priv_key_hex)?;
     let vrf_secret = SchnorrkelSecretKey::from_bytes(&vrf_secret_bytes)
         .map_err(|_| "Invalid VRF private key. Ensure it is a 64-byte hex string.")?;
     let vrf_keys = vrf_secret.to_keypair();
@@ -392,4 +418,33 @@ fn load_validator_keys(args: &Args) -> Result<ValidatorKeys, Box<dyn std::error:
         signing_keys,
         vrf_keys,
     })
+}
+
+// Utility: Auto-resolve bootstrap nodes from genesis (exclude self)
+fn resolve_bootstrap_nodes(args: &Args, genesis: &Genesis, local_peer_id: &PeerId) -> Vec<String> {
+    if !args.bootstrap_node.is_empty() {
+        return args.bootstrap_node.clone();
+    }
+
+    let local_peer_str = local_peer_id.to_string();
+    let mut peers: Vec<String> = Vec::new();
+
+    for account in genesis.accounts.values() {
+        if let Some(ref multiaddr) = account.network_identity {
+            if !multiaddr.contains(&local_peer_str) {
+                peers.push(multiaddr.clone());
+            }
+        }
+    }
+
+    if peers.is_empty() {
+        info!("[MAIN] No other peers found in genesis — running as sole bootstrap node.");
+    } else {
+        info!(
+            "[MAIN] Auto-resolved {} bootstrap peer(s) from genesis.",
+            peers.len()
+        );
+    }
+
+    peers
 }
