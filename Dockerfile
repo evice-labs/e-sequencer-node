@@ -1,10 +1,10 @@
 # Stage 1: Build
-FROM rust:1.87-bookworm AS builder
+FROM rust:1.90-bookworm AS builder
 
 WORKDIR /build
 
 # Copy library dependency first (for better layer caching)
-COPY evice-multi-sequencer/ ./evice-multi-sequencer/
+COPY e-sequencer/ ./e-sequencer/
 COPY e-sequencer-node/ ./e-sequencer-node/
 
 WORKDIR /build/e-sequencer-node
