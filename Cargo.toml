@@ -10,7 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Core sequencer library
-evice-sequencer = { path = "../e-sequencer" }
+evice-sequencer = { git = "https://github.com/evice-labs/e-sequencer.git", branch = "main" }
 
 tokio = { version = "1", features = ["full", "signal"] }
 clap = { version = "4", features = ["derive", "env"] }
